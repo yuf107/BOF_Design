@@ -34,6 +34,10 @@ class ConfigReader:
             if section.name == name:
                 return section
 
+    # 获取分区中某个特征值
+    def get_value(self, section_name, key_name):
+        return self.get_section(section_name).get_value(key_name)
+
     # 读取整个文件
     @staticmethod
     def read(file):
