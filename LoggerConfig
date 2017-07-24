@@ -1,0 +1,12 @@
+[init]
+database_config = LoggerConfig
+username = Yu Feng
+Filename = LoggerConfig
+Message = This is a test of LoggerConfig.
+
+[database]
+host = 10.10.172.41
+port = 3306
+user = yf
+password = yf3d
+db = dspdb_yufeng
