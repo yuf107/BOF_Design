@@ -5,42 +5,68 @@ import BOF_ConfigReader
 
 
 class Logger:
-    def __init__(self, database_config=None, user="", filename=""):
-        if user == "":
-            self.user = getpass.getuser()
-        else:
-            self.user = user
+    # 构造方法
+    def __init__(self, config_filename=None):
+        self.user = getpass.getuser()  # 定义user为当前用户登录名
+        self.table_name = 'LOGGING'   # 表格名称默认为logging
 
-        self.filename = filename
-
-        if database_config is None:
+        # 若无配置文件，则采取默认设置
+        if config_filename is None:
             self.output_is_database = False
-        else:
-            self.output_is_database = True
-            self.config_filename = database_config
-            Logger.database_setup(database_config)
+            self.filename = None
+            return
 
+        # 读取配置文件
+        self.config_filename = config_filename
+        config = BOF_ConfigReader.ConfigReader(config_filename)
+
+        # 尝试从配置文件中读取输出方式，若无则输出为文本文档
+        try:
+            self.output_is_database = config.get_value('init', 'output_is_database')
+        except KeyError:
+            self.output_is_database = False
+
+        # 尝试从配置文件中读取文件名，若无则空缺
+        try:
+            self.filename = config.get_value('init', 'filename')
+        except KeyError:
+            self.filename = None
+
+        # 若输出为数据库，建立数据库连接
+        if self.output_is_database:
+            self.database_setup(config_filename)
+
+    # debug 级别的运行记录，参数为用户书写的记录信息
     def debug(self, message):
         if self.output_is_database:
-            self.write(self.output_format(message).insert(0, 'Debug'))
+            ls = self.output_format(message)
+            ls.insert(0, 'Debug')
+            self.write(ls)
             return
 
         self.write("DEBUG: " + self.output_format(message))
 
+    # info 级别的运行记录，参数为用户书写的记录信息
     def info(self, message):
         if self.output_is_database:
-            self.write(self.output_format(message).insert(0, 'Info'))
+            ls = self.output_format(message)
+            ls.insert(0, 'Info')
+            self.write(ls)
             return
 
         self.write("INFO: " + self.output_format(message))
 
+    # warning 级别的运行记录，参数为用户书写的记录信息
     def warning(self, message):
         if self.output_is_database:
-            self.write(self.output_format(message).insert(0, 'Warning'))
+            ls = self.output_format(message)
+            ls.insert(0, 'Warning')
+            self.write(ls)
             return
 
         self.write("WARNING: " + self.output_format(message))
 
+    # error 级别的运行记录，参数为用户书写的记录信息
     def error(self, message):
         if self.output_is_database:
             ls = self.output_format(message)
@@ -50,18 +76,22 @@ class Logger:
 
         self.write("ERROR: " + self.output_format(message))
 
+    # critical 级别的运行记录，参数为用户书写的记录信息
     def critical(self, message):
         if self.output_is_database:
-            self.write(self.output_format(message).insert(0, 'Critical'))
+            ls = self.output_format(message)
+            ls.insert(0, 'Critical')
+            self.write(ls)
             return
 
         self.write("CRITICAL: " + self.output_format(message))
 
+    # 整理记录格式：若输出为文本则返回字符串，若为数据库则返回数组
     def output_format(self, message):
-        current_time = time.strftime('%H:%M:%S', time.localtime(time.time()))
+        current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
         msg = current_time + ' | ' + self.user + ' | '
 
-        if self.filename != "":
+        if self.filename is not None:
             msg += self.filename + ' | '
 
         msg += message + '\n'
@@ -71,7 +101,7 @@ class Logger:
 
         return [current_time, self.user, self.filename, message]
 
-    # 输出函数
+    # 输出函数，根据不同输出方式调用不同函数
     def write(self, content):
         if not self.output_is_database:
             Logger.file_write(content)
@@ -81,7 +111,7 @@ class Logger:
     # 输出到文本文档
     @staticmethod
     def file_write(content):
-        filename = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+        filename = 'Logging ' + time.strftime('%Y-%m-%d', time.localtime(time.time()))
         file = open(filename, 'a')
         file.write(content)
         file.close()
@@ -94,6 +124,19 @@ class Logger:
         file.write(content)
         file.close()
 
+    # 输出到数据库
+    def database_write(self, content):
+        conn = Logger.setup_connection(self.config_filename)
+        cursor = conn.cursor()
+
+        insert_values = """INSERT INTO %s""" % self.table_name + \
+                        """(LEVEL, TIME, USER, FILENAME, MESSAGE)
+                        VALUES(%s, %s, %s, %s, %s)"""
+
+        cursor.execute(insert_values, (content[0], content[1], content[2], content[3], content[4]))
+
+        conn.commit()
+
     # 删除数据库表格
     @staticmethod
     def database_reset(config_filename):
@@ -103,32 +146,28 @@ class Logger:
         cursor.execute(drop_table)
 
     # 建立数据库表格
-    @staticmethod
-    def database_setup(config_filename):
+    def database_setup(self, config_filename):
         conn = Logger.setup_connection(config_filename)
         cursor = conn.cursor()
 
-        create_table = """CREATE TABLE IF NOT EXISTS LOGGING(
-                            LEVEL  CHAR(8),
-                            TIME  CHAR(8),
-                            USER  CHAR(16),
-                            FILENAME  CHAR(32),
-                            MESSAGE  CHAR(80))"""
+        # 若用户已填写表格信息则使用用户创建的表格
+        try:
+            config_reader = BOF_ConfigReader.ConfigReader(config_filename)
+            table = config_reader.get_value('database', 'table')
+            cursor.execute("SELECT * FROM %s" % table)
+            self.table_name = table
 
-        cursor.execute(create_table)
-        conn.commit()
+        # 若无则新建默认表格
+        except:
+            create_table = """CREATE TABLE IF NOT EXISTS LOGGING(
+                                LEVEL  CHAR(8),
+                                TIME  CHAR(20),
+                                USER  CHAR(16),
+                                FILENAME  CHAR(32),
+                                MESSAGE  CHAR(80))"""
 
-    # 输出到数据库
-    def database_write(self, content):
-        conn = Logger.setup_connection(self.config_filename)
-        cursor = conn.cursor()
-
-        insert_values = """INSERT INTO LOGGING(LEVEL, TIME, USER, FILENAME, MESSAGE)
-                        VALUES(%s, %s, %s, %s, %s)"""
-
-        cursor.execute(insert_values, (content[0], content[1], content[2], content[3], content[4]))
-
-        conn.commit()
+            cursor.execute(create_table)
+            conn.commit()
 
     # 建立连接
     @staticmethod
@@ -146,8 +185,10 @@ class Logger:
     def database_output(self):
         conn = Logger.setup_connection(self.config_filename)
         cursor = conn.cursor()
-        cursor.execute("""SELECT * FROM LOGGING""")
+        cursor.execute("SELECT * FROM %s" % self.table_name)
         rows = cursor.fetchall()
 
         for row in rows:
             print(row)
+
+        return rows
