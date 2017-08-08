@@ -1,5 +1,6 @@
 import logging
 import time
+import codecs
 
 
 # 定义一个类别名为Section 最终的输出为数个section组成的数组
@@ -24,7 +25,7 @@ class Section:
 # 定义名为ConfigReader的类别 其中的变量content包含一个配置文件中所有的内容
 class ConfigReader:
     def __init__(self, filename):
-        file = open(filename)
+        file = codecs.open(filename, 'rb')
         self.content = ConfigReader.read(file)
         file.close()
 
@@ -44,7 +45,7 @@ class ConfigReader:
         sections = []  # 由所有分区组成的数组, 包含配置文件的所有内容
 
         line_count = 0  # 统计行数
-        for line in file.readlines():
+        for line in file.read().decode('utf-8').split('\n'):  # 添加对中文字符的支持
             line_count += 1
 
             # 处理注释
