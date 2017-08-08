@@ -6,9 +6,10 @@ import BOF_ConfigReader
 
 class Logger:
     # 构造方法
-    def __init__(self, config_filename=None):
+    def __init__(self, config_filename=None, level='warning'):
         self.user = getpass.getuser()  # 定义user为当前用户登录名
         self.table_name = 'LOGGING'   # 表格名称默认为logging
+        self.set_level(level.strip().lower())
 
         # 若无配置文件，则采取默认设置
         if config_filename is None:
@@ -22,13 +23,13 @@ class Logger:
 
         # 尝试从配置文件中读取输出方式，若无则输出为文本文档
         try:
-            self.output_is_database = config.get_value('init', 'output_is_database')
+            self.output_is_database = config.get_value('logger', 'output_is_database')
         except KeyError:
             self.output_is_database = False
 
         # 尝试从配置文件中读取文件名，若无则空缺
         try:
-            self.filename = config.get_value('init', 'filename')
+            self.filename = config.get_value('logger', 'filename')
         except KeyError:
             self.filename = None
 
@@ -36,8 +37,24 @@ class Logger:
         if self.output_is_database:
             self.database_setup(config_filename)
 
+    # 设置输出级别
+    def set_level(self, level):
+        if level == 'debug':
+            self.level = 0
+        elif level == 'info':
+            self.level = 1
+        elif level == 'warning':
+            self.level = 2
+        elif level == 'error':
+            self.level = 3
+        elif level == 'critical':
+            self.level = 4
+
     # debug 级别的运行记录，参数为用户书写的记录信息
     def debug(self, message):
+        if self.level > 0:
+            return
+
         if self.output_is_database:
             ls = self.output_format(message)
             ls.insert(0, 'Debug')
@@ -48,6 +65,9 @@ class Logger:
 
     # info 级别的运行记录，参数为用户书写的记录信息
     def info(self, message):
+        if self.level > 1:
+            return
+
         if self.output_is_database:
             ls = self.output_format(message)
             ls.insert(0, 'Info')
@@ -58,6 +78,9 @@ class Logger:
 
     # warning 级别的运行记录，参数为用户书写的记录信息
     def warning(self, message):
+        if self.level > 2:
+            return
+
         if self.output_is_database:
             ls = self.output_format(message)
             ls.insert(0, 'Warning')
@@ -68,6 +91,9 @@ class Logger:
 
     # error 级别的运行记录，参数为用户书写的记录信息
     def error(self, message):
+        if self.level > 3:
+            return
+
         if self.output_is_database:
             ls = self.output_format(message)
             ls.insert(0, 'Error')
@@ -153,7 +179,7 @@ class Logger:
         # 若用户已填写表格信息则使用用户创建的表格
         try:
             config_reader = BOF_ConfigReader.ConfigReader(config_filename)
-            table = config_reader.get_value('database', 'table')
+            table = config_reader.get_value('logger', 'table')
             cursor.execute("SELECT * FROM %s" % table)
             self.table_name = table
 
@@ -173,11 +199,11 @@ class Logger:
     @staticmethod
     def setup_connection(config_filename):
         config = BOF_ConfigReader.ConfigReader(config_filename)
-        host = config.get_section("database").get_value('host')
-        port = config.get_section("database").get_value('port')
-        user = config.get_section("database").get_value('user')
-        password = config.get_section("database").get_value('password')
-        db = config.get_section("database").get_value('db')
+        host = config.get_section("logger").get_value('host')
+        port = config.get_section("logger").get_value('port')
+        user = config.get_section("logger").get_value('user')
+        password = config.get_section("logger").get_value('password')
+        db = config.get_section("logger").get_value('db')
         conn = pymysql.connect(host=host, port=port, user=user, password=password, db=db)
         return conn
 
