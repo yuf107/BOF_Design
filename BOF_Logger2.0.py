@@ -44,28 +44,28 @@ class Logger:
 
     # debug 级别的运行记录，参数为用户书写的记录信息
     def debug(self, message):
-        if self.level > 0:
+        if self.level > 1:
             return
 
         self.log('Debug', message)
 
     # info 级别的运行记录，参数为用户书写的记录信息
     def info(self, message):
-        if self.level > 1:
+        if self.level > 2:
             return
 
         self.log('Info', message)
 
     # warning 级别的运行记录，参数为用户书写的记录信息
     def warning(self, message):
-        if self.level > 2:
+        if self.level > 3:
             return
 
         self.log('Warning', message)
 
     # error 级别的运行记录，参数为用户书写的记录信息
     def error(self, message):
-        if self.level > 3:
+        if self.level > 4:
             return
 
         self.log('Error', message)
